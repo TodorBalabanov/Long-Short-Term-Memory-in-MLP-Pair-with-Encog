@@ -1,14 +1,21 @@
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.encog.engine.network.activation.ActivationSigmoid;
+import org.encog.ml.data.MLData;
+import org.encog.ml.data.MLDataPair;
+import org.encog.ml.data.basic.BasicMLData;
+import org.encog.ml.data.basic.BasicMLDataPair;
 import org.encog.neural.data.NeuralDataSet;
 import org.encog.neural.data.basic.BasicNeuralDataSet;
 import org.encog.neural.networks.BasicNetwork;
 import org.encog.neural.networks.layers.BasicLayer;
+import org.encog.neural.networks.training.Train;
 import org.encog.neural.networks.training.propagation.resilient.ResilientPropagation;
+import org.encog.util.arrayutil.NormalizeArray;
 import org.encog.util.csv.CSVFormat;
 import org.encog.util.csv.ReadCSV;
 
@@ -24,6 +31,16 @@ public class Main {
 	 * Statistical significance is dependent of the experiments number.
 	 */
 	private static final int NUMBER_OF_EXPERIMENTS = 30;
+
+	/**
+	 * Time limit for training.
+	 */
+	private static final long MAX_TRAINING_TIME = 3000;// 10 * 60 * 1000;
+
+	/**
+	 * Data collection time interval.
+	 */
+	private static final long SINGLE_MEASUREMENT_MILLISECONDS = 1 * 1000;
 
 	/**
 	 * Lag frame of the time series data window.
@@ -106,9 +123,8 @@ public class Main {
 		/*
 		 * Read experimental data and form data sets.
 		 */
+		List<Double> values = new ArrayList<Double>();
 		try {
-			List<Double> values = new ArrayList<Double>();
-
 			/*
 			 * Read raw data.
 			 */
@@ -117,24 +133,135 @@ public class Main {
 				values.add(csv.getDouble(1));
 			}
 			csv.close();
-
-			double min = values.stream().min(Double::compare).get();
-			double max = values.stream().max(Double::compare).get();
-
-			/*
-			 * Split to training examples.
-			 */
-			for (int i = 0; i < values.size() - LEAD_SIZE; i++) {
-				for (int j = 0; j < LAG_SIZE; j++) {
-					// TODO Add normalized input data.
-				}
-				for (int j = 0; j < LEAD_SIZE; j++) {
-					// TODO Add normalized output data.
-				}
-			}
 		} catch (FileNotFoundException exception) {
 			System.err.println(exception);
 		}
+
+		NormalizeArray normalizer = new NormalizeArray();
+
+		/*
+		 * Normalization for the sigmoid function.
+		 */
+		normalizer.setNormalizedLow(0.1);
+		normalizer.setNormalizedHigh(0.9);
+		double zeroOneNormalized[] = normalizer.process(values.stream().mapToDouble(Double::doubleValue).toArray());
+
+		/*
+		 * Normalization for the hyperbolic tangent function.
+		 */
+		normalizer.setNormalizedLow(-0.9);
+		normalizer.setNormalizedHigh(+0.9);
+		double minusOneOneNormalized[] = normalizer.process(values.stream().mapToDouble(Double::doubleValue).toArray());
+
+		/*
+		 * Split to zero-one training examples.
+		 */
+		for (int i = 0; i < values.size() - (LAG_SIZE + LEAD_SIZE); i++) {
+			MLData input = new BasicMLData(LAG_SIZE);
+			MLData ideal = new BasicMLData(LEAD_SIZE);
+			MLDataPair pair = new BasicMLDataPair(input, ideal);
+
+			for (int j = 0; j < LAG_SIZE; j++) {
+				input.setData(j, zeroOneNormalized[i + j]);
+			}
+			for (int j = 0; j < LEAD_SIZE; j++) {
+				ideal.setData(j, zeroOneNormalized[i + LAG_SIZE + j]);
+			}
+
+			ZERO_ONE_DATA.add(pair);
+		}
+
+		/*
+		 * Split to minus-plus-one training examples.
+		 */
+		for (int i = 0; i < values.size() - (LAG_SIZE + LEAD_SIZE); i++) {
+			MLData input = new BasicMLData(LAG_SIZE);
+			MLData ideal = new BasicMLData(LEAD_SIZE);
+			MLDataPair pair = new BasicMLDataPair(input, ideal);
+
+			for (int j = 0; j < LAG_SIZE; j++) {
+				input.setData(j, minusOneOneNormalized[i + j]);
+			}
+			for (int j = 0; j < LEAD_SIZE; j++) {
+				ideal.setData(j, minusOneOneNormalized[i + LAG_SIZE + j]);
+			}
+
+			MINUS_PLUS_ONE_DATA.add(pair);
+		}
+	}
+
+	/**
+	 * First training experiment.
+	 * 
+	 * @return Statistics collected during the training process.
+	 */
+	private static List<Object> train1() {
+		List<Object> result = new ArrayList<>();
+
+		single.reset();
+		final Train train = new ResilientPropagation(single, ZERO_ONE_DATA);
+
+		/*
+		 * Initial record.
+		 */ {
+			train.iteration();
+			Object record[] = { Double.valueOf(train.getError()), Long.valueOf(SINGLE_MEASUREMENT_MILLISECONDS),
+					Long.valueOf(0) };
+			result.add(record);
+		}
+
+		int epoch = 0;
+		for (long stop = System.currentTimeMillis() + MAX_TRAINING_TIME; System.currentTimeMillis() < stop;) {
+			long start = System.currentTimeMillis();
+
+			do {
+				train.iteration();
+				epoch++;
+			} while ((System.currentTimeMillis() - start) < SINGLE_MEASUREMENT_MILLISECONDS);
+
+			Object record[] = { Double.valueOf(train.getError()), Long.valueOf((System.currentTimeMillis() - start)),
+					Long.valueOf(epoch) };
+			result.add(record);
+		}
+
+		return result;
+	}
+
+	/**
+	 * Second training experiment.
+	 * 
+	 * @return Statistics collected during the training process.
+	 */
+	private static List<Object> train2() {
+		List<Object> result = new ArrayList<>();
+
+		single.reset();
+		final Train train = new ResilientPropagation(single, ZERO_ONE_DATA);
+
+		/*
+		 * Initial record.
+		 */ {
+			train.iteration();
+			Object record[] = { Double.valueOf(train.getError()), Long.valueOf(SINGLE_MEASUREMENT_MILLISECONDS),
+					Long.valueOf(0) };
+			result.add(record);
+		}
+
+		int epoch = 0;
+		for (long stop = System.currentTimeMillis() + MAX_TRAINING_TIME; System.currentTimeMillis() < stop;) {
+			long start = System.currentTimeMillis();
+
+			do {
+				train.iteration();
+				epoch++;
+			} while ((System.currentTimeMillis() - start) < SINGLE_MEASUREMENT_MILLISECONDS);
+
+			Object record[] = { Double.valueOf(train.getError()), Long.valueOf((System.currentTimeMillis() - start)),
+					Long.valueOf(epoch) };
+			result.add(record);
+		}
+
+		return result;
 	}
 
 	/**
@@ -142,6 +269,20 @@ public class Main {
 	 */
 	public static void main(String[] args) {
 		System.out.println("Start ...");
+
+		List<Object> statistics = null;
+
+		System.out.println("First ...");
+		for (long g = 0; g < NUMBER_OF_EXPERIMENTS; g++) {
+			statistics = train1();
+			System.out.println(Arrays.deepToString((Object[]) statistics.toArray()));
+		}
+
+		System.out.println("Second ...");
+		for (long g = 0; g < NUMBER_OF_EXPERIMENTS; g++) {
+			statistics = train2();
+			System.out.println(Arrays.deepToString((Object[]) statistics.toArray()));
+		}
 
 		System.out.println("Stop ...");
 	}
