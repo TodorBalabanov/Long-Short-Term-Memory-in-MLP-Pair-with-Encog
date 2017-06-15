@@ -7,6 +7,7 @@ import java.util.List;
 import org.encog.engine.network.activation.ActivationSigmoid;
 import org.encog.ml.data.MLData;
 import org.encog.ml.data.MLDataPair;
+import org.encog.ml.data.MLDataSet;
 import org.encog.ml.data.basic.BasicMLData;
 import org.encog.ml.data.basic.BasicMLDataPair;
 import org.encog.neural.data.NeuralDataSet;
@@ -265,25 +266,61 @@ public class Main {
 	}
 
 	/**
+	 * Print results.
+	 * 
+	 * @param statistics
+	 *            Results.
+	 */
+	private static void print(List<List<Object>> statistics) {
+		String texts[] = new String[statistics.get(0).size()];
+
+		for (int i = 0; i < texts.length; i++) {
+			texts[i] = "";
+		}
+
+		loop: for (int c = 0;; c++) {
+			for (List<Object> experiment : statistics) {
+				int i = 0;
+				for (Object record : experiment) {
+					if (c >= ((Object[]) record).length) {
+						break loop;
+					}
+
+					texts[i] = texts[i] + "\t" + ((Object[]) record)[c];
+					i++;
+				}
+			}
+		}
+
+		for (int i = 0; i < texts.length; i++) {
+			System.out.println(texts[i].trim());
+		}
+	}
+
+	/**
 	 * @param args
 	 */
 	public static void main(String[] args) {
-		System.out.println("Start ...");
+		System.err.println("Start ...");
 
-		List<Object> statistics = null;
+		List<List<Object>> statistics = new ArrayList<List<Object>>();
 
-		System.out.println("First ...");
-		for (long g = 0; g < NUMBER_OF_EXPERIMENTS; g++) {
-			statistics = train1();
-			System.out.println(Arrays.deepToString((Object[]) statistics.toArray()));
+		statistics.clear();
+		System.err.println("First ...");
+		for (int g = 0; g < NUMBER_OF_EXPERIMENTS; g++) {
+			statistics.add(train1());
+			System.err.print("*");
 		}
+		print(statistics);
 
-		System.out.println("Second ...");
-		for (long g = 0; g < NUMBER_OF_EXPERIMENTS; g++) {
-			statistics = train2();
-			System.out.println(Arrays.deepToString((Object[]) statistics.toArray()));
+		statistics.clear();
+		System.err.println("Second ...");
+		for (int g = 0; g < NUMBER_OF_EXPERIMENTS; g++) {
+			statistics.add(train2());
+			System.err.print("*");
 		}
+		print(statistics);
 
-		System.out.println("Stop ...");
+		System.err.println("Stop ...");
 	}
 }
