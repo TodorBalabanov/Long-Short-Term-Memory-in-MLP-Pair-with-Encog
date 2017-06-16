@@ -3,6 +3,8 @@ import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
+import java.util.stream.Stream;
 
 import org.encog.engine.network.activation.ActivationSigmoid;
 import org.encog.ml.data.MLData;
@@ -217,11 +219,13 @@ public class Main {
 
 			do {
 				train.iteration();
+				
 				epoch++;
 			} while ((System.currentTimeMillis() - start) < SINGLE_MEASUREMENT_MILLISECONDS);
 
 			Object record[] = { Double.valueOf(train.getError()), Long.valueOf((System.currentTimeMillis() - start)),
 					Long.valueOf(epoch) };
+			
 			result.add(record);
 		}
 
@@ -236,29 +240,138 @@ public class Main {
 	private static List<Object> train2() {
 		List<Object> result = new ArrayList<>();
 
-		single.reset();
-		final Train train = new ResilientPropagation(single, ZERO_ONE_DATA);
+		pair[0].reset();
+		pair[1].reset();
+
+		Train train[] = { null, null };
 
 		/*
 		 * Initial record.
 		 */ {
-			train.iteration();
-			Object record[] = { Double.valueOf(train.getError()), Long.valueOf(SINGLE_MEASUREMENT_MILLISECONDS),
+			/*
+			 * Form training data.
+			 */
+			MLDataSet[] data = { new BasicNeuralDataSet(), new BasicNeuralDataSet() };
+			for (int i = 0; i < ZERO_ONE_DATA.size(); i++) {
+				double output[] = new double[LEAD_SIZE];
+
+				double feedback[] = new double[LEAD_SIZE];
+				if (i - 1 >= 0) {
+					feedback = ZERO_ONE_DATA.get(i - 1).getIdeal().getData();
+				} else {
+					// TODO May be it is better to initialize with other value.
+					feedback = new Random().doubles(LEAD_SIZE, 0.0, 1.0).toArray();
+				}
+
+				/*
+				 * Request secondary MLP for output in order to supply it in the
+				 * input of the primary MLP.
+				 */
+				pair[1].compute(feedback, output);
+
+				/*
+				 * Concatenate time series input data with secondary MLP output.
+				 */
+				double[] input = new double[ZERO_ONE_DATA.get(i).getInput().getData().length + output.length];
+				System.arraycopy(ZERO_ONE_DATA.get(i).getInput().getData(), 0, input, 0,
+						ZERO_ONE_DATA.get(i).getInput().getData().length);
+				System.arraycopy(output, 0, input, ZERO_ONE_DATA.get(i).getInput().getData().length, output.length);
+
+				/*
+				 * Add training example for the primary MLP.
+				 */
+				data[0].add(new BasicMLDataPair(new BasicMLData(input), ZERO_ONE_DATA.get(i).getIdeal()));
+
+				/*
+				 * Generate output of the primary MLP in order to supply this
+				 * values as input for the secondary MLP.
+				 */
+				pair[0].compute(input, output);
+
+				/*
+				 * Add training example for the secondary MLP.
+				 */
+				data[1].add(new BasicMLDataPair(new BasicMLData(output), ZERO_ONE_DATA.get(i).getIdeal()));
+			}
+
+			train = new Train[] { new ResilientPropagation(pair[0], data[0]),
+					new ResilientPropagation(pair[1], data[1]) };
+
+			train[0].iteration();
+			train[1].iteration();
+
+			Object record[] = { Double.valueOf(train[0].getError()), Long.valueOf(SINGLE_MEASUREMENT_MILLISECONDS),
 					Long.valueOf(0) };
+
 			result.add(record);
 		}
 
+		/*
+		 * Training.
+		 */
 		int epoch = 0;
 		for (long stop = System.currentTimeMillis() + MAX_TRAINING_TIME; System.currentTimeMillis() < stop;) {
 			long start = System.currentTimeMillis();
 
 			do {
-				train.iteration();
+				/*
+				 * Form training data.
+				 */
+				MLDataSet[] data = { new BasicNeuralDataSet(), new BasicNeuralDataSet() };
+				for (int i = 0; i < ZERO_ONE_DATA.size(); i++) {
+					double output[] = new double[LEAD_SIZE];
+
+					double feedback[] = new double[LEAD_SIZE];
+					if (i - 1 >= 0) {
+						feedback = ZERO_ONE_DATA.get(i - 1).getIdeal().getData();
+					} else {
+						// TODO May be it is better to initialize with other value.
+						feedback = new Random().doubles(LEAD_SIZE, 0.0, 1.0).toArray();
+					}
+
+					/*
+					 * Request secondary MLP for output in order to supply it in the
+					 * input of the primary MLP.
+					 */
+					pair[1].compute(feedback, output);
+
+					/*
+					 * Concatenate time series input data with secondary MLP output.
+					 */
+					double[] input = new double[ZERO_ONE_DATA.get(i).getInput().getData().length + output.length];
+					System.arraycopy(ZERO_ONE_DATA.get(i).getInput().getData(), 0, input, 0,
+							ZERO_ONE_DATA.get(i).getInput().getData().length);
+					System.arraycopy(output, 0, input, ZERO_ONE_DATA.get(i).getInput().getData().length, output.length);
+
+					/*
+					 * Add training example for the primary MLP.
+					 */
+					data[0].add(new BasicMLDataPair(new BasicMLData(input), ZERO_ONE_DATA.get(i).getIdeal()));
+
+					/*
+					 * Generate output of the primary MLP in order to supply this
+					 * values as input for the secondary MLP.
+					 */
+					pair[0].compute(input, output);
+
+					/*
+					 * Add training example for the secondary MLP.
+					 */
+					data[1].add(new BasicMLDataPair(new BasicMLData(output), ZERO_ONE_DATA.get(i).getIdeal()));
+				}
+
+				train = new Train[] { new ResilientPropagation(pair[0], data[0]),
+						new ResilientPropagation(pair[1], data[1]) };
+				
+				train[0].iteration();
+				train[1].iteration();
+				
 				epoch++;
 			} while ((System.currentTimeMillis() - start) < SINGLE_MEASUREMENT_MILLISECONDS);
 
-			Object record[] = { Double.valueOf(train.getError()), Long.valueOf((System.currentTimeMillis() - start)),
+			Object record[] = { Double.valueOf(train[0].getError()), Long.valueOf((System.currentTimeMillis() - start)),
 					Long.valueOf(epoch) };
+			
 			result.add(record);
 		}
 
@@ -306,17 +419,17 @@ public class Main {
 		List<List<Object>> statistics = new ArrayList<List<Object>>();
 
 		statistics.clear();
-		System.err.println("First ...");
+		System.err.println("Second ...");
 		for (int g = 0; g < NUMBER_OF_EXPERIMENTS; g++) {
-			statistics.add(train1());
+			statistics.add(train2());
 			System.err.print("*");
 		}
 		print(statistics);
 
 		statistics.clear();
-		System.err.println("Second ...");
+		System.err.println("First ...");
 		for (int g = 0; g < NUMBER_OF_EXPERIMENTS; g++) {
-			statistics.add(train2());
+			statistics.add(train1());
 			System.err.print("*");
 		}
 		print(statistics);
