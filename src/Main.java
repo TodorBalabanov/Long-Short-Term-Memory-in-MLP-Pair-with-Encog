@@ -219,13 +219,13 @@ public class Main {
 
 			do {
 				train.iteration();
-				
+
 				epoch++;
 			} while ((System.currentTimeMillis() - start) < SINGLE_MEASUREMENT_MILLISECONDS);
 
 			Object record[] = { Double.valueOf(train.getError()), Long.valueOf((System.currentTimeMillis() - start)),
 					Long.valueOf(epoch) };
-			
+
 			result.add(record);
 		}
 
@@ -317,6 +317,7 @@ public class Main {
 				/*
 				 * Form training data.
 				 */
+				long time = System.currentTimeMillis();
 				MLDataSet[] data = { new BasicNeuralDataSet(), new BasicNeuralDataSet() };
 				for (int i = 0; i < ZERO_ONE_DATA.size(); i++) {
 					double output[] = new double[LEAD_SIZE];
@@ -325,18 +326,20 @@ public class Main {
 					if (i - 1 >= 0) {
 						feedback = ZERO_ONE_DATA.get(i - 1).getIdeal().getData();
 					} else {
-						// TODO May be it is better to initialize with other value.
+						// TODO May be it is better to initialize with other
+						// value.
 						feedback = new Random().doubles(LEAD_SIZE, 0.0, 1.0).toArray();
 					}
 
 					/*
-					 * Request secondary MLP for output in order to supply it in the
-					 * input of the primary MLP.
+					 * Request secondary MLP for output in order to supply it in
+					 * the input of the primary MLP.
 					 */
 					pair[1].compute(feedback, output);
 
 					/*
-					 * Concatenate time series input data with secondary MLP output.
+					 * Concatenate time series input data with secondary MLP
+					 * output.
 					 */
 					double[] input = new double[ZERO_ONE_DATA.get(i).getInput().getData().length + output.length];
 					System.arraycopy(ZERO_ONE_DATA.get(i).getInput().getData(), 0, input, 0,
@@ -349,8 +352,8 @@ public class Main {
 					data[0].add(new BasicMLDataPair(new BasicMLData(input), ZERO_ONE_DATA.get(i).getIdeal()));
 
 					/*
-					 * Generate output of the primary MLP in order to supply this
-					 * values as input for the secondary MLP.
+					 * Generate output of the primary MLP in order to supply
+					 * this values as input for the secondary MLP.
 					 */
 					pair[0].compute(input, output);
 
@@ -362,16 +365,17 @@ public class Main {
 
 				train = new Train[] { new ResilientPropagation(pair[0], data[0]),
 						new ResilientPropagation(pair[1], data[1]) };
-				
+				start += System.currentTimeMillis() - time;
+
 				train[0].iteration();
 				train[1].iteration();
-				
+
 				epoch++;
 			} while ((System.currentTimeMillis() - start) < SINGLE_MEASUREMENT_MILLISECONDS);
 
 			Object record[] = { Double.valueOf(train[0].getError()), Long.valueOf((System.currentTimeMillis() - start)),
 					Long.valueOf(epoch) };
-			
+
 			result.add(record);
 		}
 
