@@ -28,7 +28,7 @@ import org.encog.util.csv.ReadCSV;
  * @author Todor Balabanov
  */
 public class Main {
-	private static final String DATA_FILE_NAME = "./dat/number-of-earthquakes-per-year-m.csv";
+	private static final String DATA_FILE_NAME = "../dat/number-of-earthquakes-per-year-m.csv";
 
 	/**
 	 * Statistical significance is dependent of the experiments number.
@@ -38,7 +38,7 @@ public class Main {
 	/**
 	 * Time limit for training.
 	 */
-	private static final long MAX_TRAINING_TIME = 3000;// 10 * 60 * 1000;
+	private static final long MAX_TRAINING_TIME = 10 * 60 * 1000;
 
 	/**
 	 * Data collection time interval.
@@ -423,17 +423,17 @@ public class Main {
 		List<List<Object>> statistics = new ArrayList<List<Object>>();
 
 		statistics.clear();
-		System.err.println("Second ...");
+		System.err.println("First ...");
 		for (int g = 0; g < NUMBER_OF_EXPERIMENTS; g++) {
-			statistics.add(train2());
+			statistics.add(train1());
 			System.err.print("*");
 		}
 		print(statistics);
 
 		statistics.clear();
-		System.err.println("First ...");
+		System.err.println("Second ...");
 		for (int g = 0; g < NUMBER_OF_EXPERIMENTS; g++) {
-			statistics.add(train1());
+			statistics.add(train2());
 			System.err.print("*");
 		}
 		print(statistics);
