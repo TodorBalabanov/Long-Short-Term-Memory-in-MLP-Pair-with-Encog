@@ -38,12 +38,12 @@ public class Main {
 	/**
 	 * Time limit for training.
 	 */
-	private static final long MAX_TRAINING_TIME = 1 * 60 * 1000;
+	private static final long MAX_TRAINING_TIME =  1000;
 
 	/**
 	 * Data collection time interval.
 	 */
-	private static final long SINGLE_MEASUREMENT_MILLISECONDS = 6 * 1000;
+	private static final long SINGLE_MEASUREMENT_MILLISECONDS = 100;
 
 	/**
 	 * Lag frame of the time series data window.
@@ -210,9 +210,8 @@ public class Main {
 			train.iteration();
 			Object record[] = { Double.valueOf(train.getError()), Long.valueOf(SINGLE_MEASUREMENT_MILLISECONDS),
 					Long.valueOf(0) };
-			/*
-			 * result.add(record);
-			 */
+
+			result.add(record);
 		}
 
 		int epoch = 0;
@@ -305,9 +304,7 @@ public class Main {
 			Object record[] = { Double.valueOf(train[0].getError()), Long.valueOf(SINGLE_MEASUREMENT_MILLISECONDS),
 					Long.valueOf(0) };
 
-			/*
-			 * result.add(record);
-			 */
+			result.add(record);
 		}
 
 		/*
